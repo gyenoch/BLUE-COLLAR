@@ -1,0 +1,416 @@
+# .gitignore (root directory)
+
+# ============================================
+# DEPENDENCIES
+# ============================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-store/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ============================================
+# ENVIRONMENT VARIABLES
+# ============================================
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+*.env
+*.env.local
+
+# ============================================
+# BUILD OUTPUTS
+# ============================================
+dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
+*.tsbuildinfo
+*.js.map
+*.d.ts.map
+
+# ============================================
+# LOGS
+# ============================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+combined.log
+error.log
+access.log
+
+# ============================================
+# TESTING
+# ============================================
+coverage/
+*.lcov
+.nyc_output/
+.jest/
+.coverage/
+test-results/
+junit.xml
+e2e-results/
+
+# ============================================
+# IDEs & EDITORS
+# ============================================
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.vim/
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ============================================
+# OPERATING SYSTEMS
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================
+# DATABASE
+# ============================================
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+database/data/
+postgres-data/
+mysql-data/
+redis-data/
+*.sql.backup
+dump.rdb
+
+# ============================================
+# DOCKER
+# ============================================
+docker-compose.override.yml
+.dockerignore
+
+# ============================================
+# CLOUD & DEPLOYMENT
+# ============================================
+# Railway
+.railway/
+
+# Vercel
+.vercel/
+.vercel.json
+
+# AWS
+.aws/
+*.pem
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+.terraform.lock.hcl
+
+# ============================================
+# NEXT.JS SPECIFIC
+# ============================================
+# Next.js build output
+apps/dashboard/.next/
+apps/dashboard/out/
+
+# Next.js cache
+apps/dashboard/.next/cache/
+
+# Static export
+apps/dashboard/out/
+
+# Production
+apps/dashboard/build/
+
+# TypeScript
+apps/dashboard/*.tsbuildinfo
+apps/dashboard/next-env.d.ts
+
+# ============================================
+# REACT NATIVE / EXPO SPECIFIC
+# ============================================
+apps/mobile/.expo/
+apps/mobile/.expo-shared/
+apps/mobile/dist/
+apps/mobile/npm-debug.*
+apps/mobile/yarn-error.log
+apps/mobile/*.jks
+apps/mobile/*.p8
+apps/mobile/*.p12
+apps/mobile/*.key
+apps/mobile/*.mobileprovision
+apps/mobile/*.orig.*
+apps/mobile/web-build/
+
+# Metro bundler
+apps/mobile/.metro-health-check*
+
+# iOS
+apps/mobile/ios/Pods/
+apps/mobile/ios/**/*.xcodeproj/xcuserdata/
+apps/mobile/ios/**/*.xcworkspace/xcuserdata/
+apps/mobile/ios/build/
+apps/mobile/ios/.xcode.env.local
+
+# Android
+apps/mobile/android/app/build/
+apps/mobile/android/.gradle/
+apps/mobile/android/gradle.properties
+apps/mobile/android/local.properties
+apps/mobile/android/.idea/
+apps/mobile/android/.cxx/
+
+# ============================================
+# TYPESCRIPT
+# ============================================
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# ============================================
+# GENERATED FILES
+# ============================================
+# API generated files
+apps/api/src/generated/
+apps/api/prisma/generated/
+
+# GraphQL generated
+apps/api/src/**/*.graphql.ts
+apps/api/src/**/__generated__/
+
+# ============================================
+# TEMPORARY FILES
+# ============================================
+*.tmp
+*.temp
+*.bak
+*.backup
+*.swp
+*.swo
+*.orig
+*~
+
+# ============================================
+# UPLOADS & MEDIA
+# ============================================
+uploads/
+public/uploads/
+storage/
+tmp/
+temp/
+
+# ============================================
+# SECRETS & CREDENTIALS
+# ============================================
+secrets/
+credentials/
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+serviceAccountKey.json
+google-credentials.json
+
+# ============================================
+# MONITORING & ANALYTICS
+# ============================================
+.sentryclirc
+sentry.properties
+
+# ============================================
+# MISC
+# ============================================
+*.pid
+*.seed
+*.pid.lock
+lib-cov/
+.grunt/
+.lock-wscript
+.npm/
+.eslintcache
+.stylelintcache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+.node_repl_history
+.yarn-integrity
+.cache/
+.parcel-cache/
+.turbo/
+.output/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# dotenv environment variable files
+.env*
+
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# ============================================
+# PROJECT SPECIFIC
+# ============================================
+# Call recordings
+apps/api/recordings/
+apps/api/public/recordings/
+
+# Transcripts
+apps/api/transcripts/
+
+# Customer data backups
+backups/
+*.backup
+
+# Local development overrides
+local/
+.local/
+
+# Documentation builds
+docs/_build/
+docs/.doctrees/
+
+# Benchmark results
+benchmark-results/
+
+# ============================================
+# KEEP THESE FILES (negation)
+# ============================================
+# Keep example env files
+!.env.example
+!.env.local.example
+!apps/*/.env.example
+
+# Keep Docker files
+!Dockerfile
+!docker-compose.yml
+!.dockerignore
+
+# Keep GitHub workflows
+!.github/
+
+# Keep README files
+!README.md
+!**/README.md
+
+# Keep LICENSE
+!LICENSE
+
+# Keep VS Code recommended extensions
+!.vscode/extensions.json
+
+# ============================================
+# MONOREPO SPECIFIC
+# ============================================
+# Ignore all node_modules in subdirectories
+**/node_modules/
+
+# Ignore all dist directories
+**/dist/
+
+# Ignore all build directories
+**/build/
+
+# Ignore all .next directories
+**/.next/
+
+# New Files
+SaaS-logic/
+.claude/
+
+# ============================================
+# END OF .GITIGNORE
+# ============================================

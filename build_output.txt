@@ -1,0 +1,80 @@
+
+> blue-collar-agent@1.0.0 build
+> npm run build --workspaces --if-present
+
+
+> @blue-collar/api@1.0.0 build
+> tsc
+
+src/modules/booking/booking.routes.ts(11,12): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>, _res: Response<any, Record<string, any>>, next: NextFunction) => Promise<...>' is not assignable to parameter of type 'PathParams'.
+src/modules/customers/customers.routes.ts(10,12): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>, _res: Response<any, Record<string, any>>, next: NextFunction) => Promise<...>' is not assignable to parameter of type 'PathParams'.
+npm error Lifecycle script `build` failed with error:
+npm error code 2
+npm error path C:\Users\USER\Desktop\VSCODE-PROJECT\GYENOCH-PROJECT\BLUE-COLLAR\apps\api
+npm error workspace @blue-collar/api@1.0.0
+npm error location C:\Users\USER\Desktop\VSCODE-PROJECT\GYENOCH-PROJECT\BLUE-COLLAR\apps\api
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c tsc
+
+
+> @blue-collar/dashboard@1.0.0 build
+> next build
+
+  Γû▓ Next.js 14.2.35
+
+   Creating an optimized production build ...
+ ΓÜá Attempted to load @next/swc-win32-x64-msvc, but an error occurred: \\?\C:\Users\USER\Desktop\VSCODE-PROJECT\GYENOCH-PROJECT\BLUE-COLLAR\node_modules\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node is not a valid Win32 application.
+\\?\C:\Users\USER\Desktop\VSCODE-PROJECT\GYENOCH-PROJECT\BLUE-COLLAR\node_modules\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node
+ ΓÜá Found lockfile missing swc dependencies, patching...
+npm error code ENOWORKSPACES
+npm error This command does not support workspaces.
+npm error A complete log of this run can be found in: C:\Users\USER\AppData\Local\npm-cache\_logs\2026-02-20T04_08_01_992Z-debug-0.log
+ Γ¿» Failed to patch lockfile, please try uninstalling and reinstalling next in this workspace
+TypeError: fetch failed
+    at node:internal/deps/undici/undici:13178:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async fetchPkgInfo (C:\Users\USER\Desktop\VSCODE-PROJECT\GYENOCH-PROJECT\BLUE-COLLAR\apps\dashboard\node_modules\next\dist\lib\patch-incorrect-lockfile.js:66:17)
+    at async Promise.all (index 0)
+    at async patchIncorrectLockfile (C:\Users\USER\Desktop\VSCODE-PROJECT\GYENOCH-PROJECT\BLUE-COLLAR\apps\dashboard\node_modules\next\dist\lib\patch-incorrect-lockfile.js:162:26) {
+  [cause]: ConnectTimeoutError: Connect Timeout Error (attempted addresses: 2606:4700::6810:122:443, 104.16.3.34:443, 2606:4700::6810:222:443, 104.16.5.34:443, 2606:4700::6810:b22:443, 104.16.7.34:443, 2606:4700::6810:22:443, 104.16.9.34:443)
+      at onConnectTimeout (node:internal/deps/undici/undici:2331:28)
+      at node:internal/deps/undici/undici:2283:50
+      at Immediate._onImmediate (node:internal/deps/undici/undici:2313:37)
+      at process.processImmediate (node:internal/timers:483:21) {
+    code: 'UND_ERR_CONNECT_TIMEOUT'
+  }
+}
+ Γ¿» Failed to load SWC binary for win32/x64, see more info here: https://nextjs.org/docs/messages/failed-loading-swc
+Next.js build worker exited with code: 1 and signal: null
+npm error Lifecycle script `build` failed with error:
+npm error code 1
+npm error path C:\Users\USER\Desktop\VSCODE-PROJECT\GYENOCH-PROJECT\BLUE-COLLAR\apps\dashboard
+npm error workspace @blue-collar/dashboard@1.0.0
+npm error location C:\Users\USER\Desktop\VSCODE-PROJECT\GYENOCH-PROJECT\BLUE-COLLAR\apps\dashboard
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c next build
+
+
+> @blue-collar/pricing-engine@1.0.0 build
+> tsc
+
+node_modules/@types/babel__core/index.d.ts(1,34): error TS2306: File 'C:/Users/USER/Desktop/VSCODE-PROJECT/GYENOCH-PROJECT/BLUE-COLLAR/node_modules/@types/babel__generator/index.d.ts' is not a module.
+node_modules/@types/babel__core/index.d.ts(3,22): error TS2306: File 'C:/Users/USER/Desktop/VSCODE-PROJECT/GYENOCH-PROJECT/BLUE-COLLAR/node_modules/@types/babel__template/index.d.ts' is not a module.
+node_modules/@types/istanbul-reports/index.d.ts(1,34): error TS2306: File 'C:/Users/USER/Desktop/VSCODE-PROJECT/GYENOCH-PROJECT/BLUE-COLLAR/node_modules/@types/istanbul-lib-report/index.d.ts' is not a module.
+node_modules/@types/yargs/index.d.ts(15,50): error TS2306: File 'C:/Users/USER/Desktop/VSCODE-PROJECT/GYENOCH-PROJECT/BLUE-COLLAR/node_modules/@types/yargs-parser/index.d.ts' is not a module.
+npm error Lifecycle script `build` failed with error:
+npm error code 2
+npm error path C:\Users\USER\Desktop\VSCODE-PROJECT\GYENOCH-PROJECT\BLUE-COLLAR\packages\pricing-engine
+npm error workspace @blue-collar/pricing-engine@1.0.0
+npm error location C:\Users\USER\Desktop\VSCODE-PROJECT\GYENOCH-PROJECT\BLUE-COLLAR\packages\pricing-engine
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c tsc
+
+
+> @blue-collar/shared@1.0.0 build
+> tsc
+
