@@ -6,7 +6,7 @@ export interface Appointment {
   customer_id: string | null;
   technician_id: string | null;
   call_id: string | null;
-  scheduled_time: Date;
+  scheduled_time: string;
   duration_minutes: number;
   service_type: string | null;
   issue_description: string | null;
@@ -25,18 +25,21 @@ export interface Appointment {
   completion_notes: string | null;
   completion_photos: string[] | null;
   parts_used: unknown | null;
-  created_at: Date;
-  updated_at: Date;
-  completed_at: Date | null;
-  cancelled_at: Date | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  cancelled_at: string | null;
 }
 
 export class AppointmentRepository extends BaseRepository {
   async findById(id: string): Promise<Appointment | null> {
-    return this.queryOne<Appointment>(
-      `SELECT * FROM appointments WHERE id = $1`,
-      [id]
-    );
+    const { data, error } = await this.db
+      .from('appointments')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
   }
 
   async findAllByBusiness(
@@ -45,34 +48,31 @@ export class AppointmentRepository extends BaseRepository {
     limit = 50,
     offset = 0
   ): Promise<Appointment[]> {
-    if (status) {
-      return this.query<Appointment>(
-        `SELECT * FROM appointments
-         WHERE business_id = $1 AND status = $2
-         ORDER BY scheduled_time DESC
-         LIMIT $3 OFFSET $4`,
-        [businessId, status, limit, offset]
-      );
-    }
-    return this.query<Appointment>(
-      `SELECT * FROM appointments
-       WHERE business_id = $1
-       ORDER BY scheduled_time DESC
-       LIMIT $2 OFFSET $3`,
-      [businessId, limit, offset]
-    );
+    let query = this.db
+      .from('appointments')
+      .select('*')
+      .eq('business_id', businessId)
+      .order('scheduled_time', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (status) query = query.eq('status', status);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data ?? [];
   }
 
   async findUpcoming(businessId: string, limit = 10): Promise<Appointment[]> {
-    return this.query<Appointment>(
-      `SELECT * FROM appointments
-       WHERE business_id = $1
-         AND scheduled_time > NOW()
-         AND status IN ('scheduled', 'confirmed')
-       ORDER BY scheduled_time ASC
-       LIMIT $2`,
-      [businessId, limit]
-    );
+    const { data, error } = await this.db
+      .from('appointments')
+      .select('*')
+      .eq('business_id', businessId)
+      .gt('scheduled_time', new Date().toISOString())
+      .in('status', ['scheduled', 'confirmed'])
+      .order('scheduled_time', { ascending: true })
+      .limit(limit);
+    if (error) throw error;
+    return data ?? [];
   }
 
   async create(data: {
@@ -87,38 +87,38 @@ export class AppointmentRepository extends BaseRepository {
     estimatedCostMax?: number;
     durationMinutes?: number;
   }): Promise<Appointment> {
-    const row = await this.queryOne<Appointment>(
-      `INSERT INTO appointments
-         (business_id, customer_id, call_id, scheduled_time, service_type,
-          issue_description, urgency, estimated_cost_min, estimated_cost_max,
-          duration_minutes, confirmation_status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending')
-       RETURNING *`,
-      [
-        data.businessId,
-        data.customerId ?? null,
-        data.callId ?? null,
-        data.scheduledTime,
-        data.serviceType ?? null,
-        data.issueDescription ?? null,
-        data.urgency ?? null,
-        data.estimatedCostMin ?? null,
-        data.estimatedCostMax ?? null,
-        data.durationMinutes ?? 60,
-      ]
-    );
-    return row!;
+    const { data: row, error } = await this.db
+      .from('appointments')
+      .insert({
+        business_id:        data.businessId,
+        customer_id:        data.customerId        ?? null,
+        call_id:            data.callId            ?? null,
+        scheduled_time:     data.scheduledTime.toISOString(),
+        service_type:       data.serviceType       ?? null,
+        issue_description:  data.issueDescription  ?? null,
+        urgency:            data.urgency           ?? null,
+        estimated_cost_min: data.estimatedCostMin  ?? null,
+        estimated_cost_max: data.estimatedCostMax  ?? null,
+        duration_minutes:   data.durationMinutes   ?? 60,
+        confirmation_status: 'pending',
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return row;
   }
 
   async updateStatus(id: string, status: string): Promise<void> {
-    await this.query(
-      `UPDATE appointments
-       SET status = $2, updated_at = NOW(),
-           completed_at = CASE WHEN $2 = 'completed' THEN NOW() ELSE completed_at END,
-           cancelled_at = CASE WHEN $2 = 'cancelled' THEN NOW() ELSE cancelled_at END
-       WHERE id = $1`,
-      [id, status]
-    );
+    const now = new Date().toISOString();
+    const payload: Record<string, unknown> = { status, updated_at: now };
+    if (status === 'completed') payload.completed_at = now;
+    if (status === 'cancelled') payload.cancelled_at = now;
+
+    const { error } = await this.db
+      .from('appointments')
+      .update(payload)
+      .eq('id', id);
+    if (error) throw error;
   }
 
   async complete(
@@ -129,31 +129,34 @@ export class AppointmentRepository extends BaseRepository {
       partsUsed?: unknown[];
     }
   ): Promise<void> {
-    await this.query(
-      `UPDATE appointments
-       SET status = 'completed',
-           actual_cost = COALESCE($2, actual_cost),
-           completion_notes = COALESCE($3, completion_notes),
-           parts_used = COALESCE($4, parts_used),
-           completed_at = NOW(),
-           updated_at = NOW()
-       WHERE id = $1`,
-      [
-        id,
-        data.actualCost ?? null,
-        data.completionNotes ?? null,
-        data.partsUsed ? JSON.stringify(data.partsUsed) : null,
-      ]
-    );
+    const now = new Date().toISOString();
+    const payload: Record<string, unknown> = {
+      status: 'completed',
+      completed_at: now,
+      updated_at: now,
+    };
+    if (data.actualCost      !== undefined) payload.actual_cost       = data.actualCost;
+    if (data.completionNotes !== undefined) payload.completion_notes  = data.completionNotes;
+    if (data.partsUsed       !== undefined) payload.parts_used        = data.partsUsed;
+
+    const { error } = await this.db
+      .from('appointments')
+      .update(payload)
+      .eq('id', id);
+    if (error) throw error;
   }
 
   async todayCount(businessId: string): Promise<number> {
-    const row = await this.queryOne<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM appointments
-       WHERE business_id = $1
-         AND scheduled_time::date = CURRENT_DATE`,
-      [businessId]
-    );
-    return parseInt(row?.count ?? '0', 10);
+    const today    = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().split('T')[0];
+
+    const { count, error } = await this.db
+      .from('appointments')
+      .select('*', { count: 'exact', head: true })
+      .eq('business_id', businessId)
+      .gte('scheduled_time', today)
+      .lt('scheduled_time', tomorrow);
+    if (error) throw error;
+    return count ?? 0;
   }
 }

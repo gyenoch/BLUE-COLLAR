@@ -1,4 +1,4 @@
-import { ElevenLabsClient } from 'elevenlabs';
+import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import { env } from '../../../config/env.config';
 import { createLogger } from '../../../utils/logger';
 

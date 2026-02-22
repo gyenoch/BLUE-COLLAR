@@ -1,0 +1,8 @@
+export default function PricingSettingsPage() {
+  return (
+    <div className="p-8">
+      <h1 className="text-2xl font-bold">Pricing</h1>
+      <p className="text-gray-500 mt-2">Configure dynamic pricing rules for your services.</p>
+    </div>
+  )
+}

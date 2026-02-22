@@ -22,22 +22,28 @@ export interface CallRecord {
   score_tier: string | null;
   source: string | null;
   campaign: string | null;
-  created_at: Date;
+  created_at: string;
 }
 
 export class CallRepository extends BaseRepository {
   async findByCallSid(callSid: string): Promise<CallRecord | null> {
-    return this.queryOne<CallRecord>(
-      `SELECT * FROM calls WHERE call_sid = $1`,
-      [callSid]
-    );
+    const { data, error } = await this.db
+      .from('calls')
+      .select('*')
+      .eq('call_sid', callSid)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
   }
 
   async findById(id: string): Promise<CallRecord | null> {
-    return this.queryOne<CallRecord>(
-      `SELECT * FROM calls WHERE id = $1`,
-      [id]
-    );
+    const { data, error } = await this.db
+      .from('calls')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
   }
 
   async findAllByBusiness(
@@ -45,13 +51,14 @@ export class CallRepository extends BaseRepository {
     limit = 50,
     offset = 0
   ): Promise<CallRecord[]> {
-    return this.query<CallRecord>(
-      `SELECT * FROM calls
-       WHERE business_id = $1
-       ORDER BY created_at DESC
-       LIMIT $2 OFFSET $3`,
-      [businessId, limit, offset]
-    );
+    const { data, error } = await this.db
+      .from('calls')
+      .select('*')
+      .eq('business_id', businessId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error) throw error;
+    return data ?? [];
   }
 
   async create(data: {
@@ -61,20 +68,19 @@ export class CallRepository extends BaseRepository {
     direction?: string;
     customerId?: string;
   }): Promise<CallRecord> {
-    const row = await this.queryOne<CallRecord>(
-      `INSERT INTO calls
-         (business_id, customer_id, customer_phone, call_sid, direction)
-       VALUES ($1,$2,$3,$4,$5)
-       RETURNING *`,
-      [
-        data.businessId,
-        data.customerId ?? null,
-        data.customerPhone,
-        data.callSid,
-        data.direction ?? 'inbound',
-      ]
-    );
-    return row!;
+    const { data: row, error } = await this.db
+      .from('calls')
+      .insert({
+        business_id:   data.businessId,
+        customer_id:   data.customerId   ?? null,
+        customer_phone: data.customerPhone,
+        call_sid:      data.callSid,
+        direction:     data.direction    ?? 'inbound',
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return row;
   }
 
   async finalize(
@@ -96,49 +102,36 @@ export class CallRepository extends BaseRepository {
       recordingUrl?: string;
     }
   ): Promise<void> {
-    await this.query(
-      `UPDATE calls SET
-         duration              = COALESCE($2,  duration),
-         transcript            = COALESCE($3,  transcript),
-         conversation_history  = COALESCE($4,  conversation_history),
-         language              = COALESCE($5,  language),
-         urgency               = COALESCE($6,  urgency),
-         issue_type            = COALESCE($7,  issue_type),
-         issue_description     = COALESCE($8,  issue_description),
-         estimated_cost_min    = COALESCE($9,  estimated_cost_min),
-         estimated_cost_max    = COALESCE($10, estimated_cost_max),
-         outcome               = COALESCE($11, outcome),
-         lead_score            = COALESCE($12, lead_score),
-         score_tier            = COALESCE($13, score_tier),
-         customer_id           = COALESCE($14, customer_id),
-         recording_url         = COALESCE($15, recording_url)
-       WHERE call_sid = $1`,
-      [
-        callSid,
-        data.duration ?? null,
-        data.transcript ?? null,
-        data.conversationHistory ? JSON.stringify(data.conversationHistory) : null,
-        data.language ?? null,
-        data.urgency ?? null,
-        data.issueType ?? null,
-        data.issueDescription ?? null,
-        data.estimatedCostMin ?? null,
-        data.estimatedCostMax ?? null,
-        data.outcome ?? null,
-        data.leadScore ?? null,
-        data.scoreTier ?? null,
-        data.customerId ?? null,
-        data.recordingUrl ?? null,
-      ]
-    );
+    const payload: Record<string, unknown> = {};
+    if (data.duration            !== undefined) payload.duration             = data.duration;
+    if (data.transcript          !== undefined) payload.transcript           = data.transcript;
+    if (data.conversationHistory !== undefined) payload.conversation_history = data.conversationHistory;
+    if (data.language            !== undefined) payload.language             = data.language;
+    if (data.urgency             !== undefined) payload.urgency              = data.urgency;
+    if (data.issueType           !== undefined) payload.issue_type           = data.issueType;
+    if (data.issueDescription    !== undefined) payload.issue_description    = data.issueDescription;
+    if (data.estimatedCostMin    !== undefined) payload.estimated_cost_min   = data.estimatedCostMin;
+    if (data.estimatedCostMax    !== undefined) payload.estimated_cost_max   = data.estimatedCostMax;
+    if (data.outcome             !== undefined) payload.outcome              = data.outcome;
+    if (data.leadScore           !== undefined) payload.lead_score           = data.leadScore;
+    if (data.scoreTier           !== undefined) payload.score_tier           = data.scoreTier;
+    if (data.customerId          !== undefined) payload.customer_id          = data.customerId;
+    if (data.recordingUrl        !== undefined) payload.recording_url        = data.recordingUrl;
+
+    const { error } = await this.db
+      .from('calls')
+      .update(payload)
+      .eq('call_sid', callSid);
+    if (error) throw error;
   }
 
   async countByBusiness(businessId: string): Promise<number> {
-    const row = await this.queryOne<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM calls WHERE business_id = $1`,
-      [businessId]
-    );
-    return parseInt(row?.count ?? '0', 10);
+    const { count, error } = await this.db
+      .from('calls')
+      .select('*', { count: 'exact', head: true })
+      .eq('business_id', businessId);
+    if (error) throw error;
+    return count ?? 0;
   }
 
   async todayStats(businessId: string): Promise<{
@@ -146,24 +139,32 @@ export class CallRepository extends BaseRepository {
     booked: number;
     emergency: number;
   }> {
-    const row = await this.queryOne<{
-      total: string;
-      booked: string;
-      emergency: string;
-    }>(
-      `SELECT
-         COUNT(*)                                                    AS total,
-         COUNT(*) FILTER (WHERE outcome = 'booked')                 AS booked,
-         COUNT(*) FILTER (WHERE urgency = 'emergency')              AS emergency
-       FROM calls
-       WHERE business_id = $1
-         AND created_at >= CURRENT_DATE`,
-      [businessId]
-    );
+    const today = new Date().toISOString().split('T')[0];
+
+    const [totalRes, bookedRes, emergencyRes] = await Promise.all([
+      this.db
+        .from('calls')
+        .select('*', { count: 'exact', head: true })
+        .eq('business_id', businessId)
+        .gte('created_at', today),
+      this.db
+        .from('calls')
+        .select('*', { count: 'exact', head: true })
+        .eq('business_id', businessId)
+        .eq('outcome', 'booked')
+        .gte('created_at', today),
+      this.db
+        .from('calls')
+        .select('*', { count: 'exact', head: true })
+        .eq('business_id', businessId)
+        .eq('urgency', 'emergency')
+        .gte('created_at', today),
+    ]);
+
     return {
-      total:     parseInt(row?.total     ?? '0', 10),
-      booked:    parseInt(row?.booked    ?? '0', 10),
-      emergency: parseInt(row?.emergency ?? '0', 10),
+      total:     totalRes.count     ?? 0,
+      booked:    bookedRes.count    ?? 0,
+      emergency: emergencyRes.count ?? 0,
     };
   }
 }

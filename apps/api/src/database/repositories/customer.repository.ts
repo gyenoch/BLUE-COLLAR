@@ -16,28 +16,35 @@ export interface Customer {
   preferred_contact: string;
   lifetime_value: number;
   total_jobs: number;
-  last_service_date: Date | null;
+  last_service_date: string | null;
   stripe_customer_id: string | null;
   jobber_id: string | null;
   tags: string[] | null;
   internal_notes: string | null;
-  created_at: Date;
-  updated_at: Date;
+  created_at: string;
+  updated_at: string;
 }
 
 export class CustomerRepository extends BaseRepository {
   async findById(id: string): Promise<Customer | null> {
-    return this.queryOne<Customer>(
-      `SELECT * FROM customers WHERE id = $1`,
-      [id]
-    );
+    const { data, error } = await this.db
+      .from('customers')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
   }
 
   async findByPhone(businessId: string, phone: string): Promise<Customer | null> {
-    return this.queryOne<Customer>(
-      `SELECT * FROM customers WHERE business_id = $1 AND phone = $2`,
-      [businessId, phone]
-    );
+    const { data, error } = await this.db
+      .from('customers')
+      .select('*')
+      .eq('business_id', businessId)
+      .eq('phone', phone)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
   }
 
   async findAllByBusiness(
@@ -45,13 +52,15 @@ export class CustomerRepository extends BaseRepository {
     limit = 50,
     offset = 0
   ): Promise<Customer[]> {
-    return this.query<Customer>(
-      `SELECT * FROM customers
-       WHERE business_id = $1
-       ORDER BY lifetime_value DESC, created_at DESC
-       LIMIT $2 OFFSET $3`,
-      [businessId, limit, offset]
-    );
+    const { data, error } = await this.db
+      .from('customers')
+      .select('*')
+      .eq('business_id', businessId)
+      .order('lifetime_value', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error) throw error;
+    return data ?? [];
   }
 
   async upsert(data: {
@@ -65,51 +74,50 @@ export class CustomerRepository extends BaseRepository {
     zip?: string;
     language?: string;
   }): Promise<Customer> {
-    const row = await this.queryOne<Customer>(
-      `INSERT INTO customers
-         (business_id, phone, name, email, address, city, state, zip, language)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-       ON CONFLICT (business_id, phone) DO UPDATE SET
-         name     = COALESCE(EXCLUDED.name,     customers.name),
-         email    = COALESCE(EXCLUDED.email,    customers.email),
-         address  = COALESCE(EXCLUDED.address,  customers.address),
-         city     = COALESCE(EXCLUDED.city,     customers.city),
-         state    = COALESCE(EXCLUDED.state,    customers.state),
-         zip      = COALESCE(EXCLUDED.zip,      customers.zip),
-         language = COALESCE(EXCLUDED.language, customers.language),
-         updated_at = NOW()
-       RETURNING *`,
-      [
-        data.businessId,
-        data.phone,
-        data.name ?? null,
-        data.email ?? null,
-        data.address ?? null,
-        data.city ?? null,
-        data.state ?? null,
-        data.zip ?? null,
-        data.language ?? 'en',
-      ]
-    );
-    return row!;
+    const { data: row, error } = await this.db
+      .from('customers')
+      .upsert(
+        {
+          business_id: data.businessId,
+          phone:       data.phone,
+          name:        data.name     ?? null,
+          email:       data.email    ?? null,
+          address:     data.address  ?? null,
+          city:        data.city     ?? null,
+          state:       data.state    ?? null,
+          zip:         data.zip      ?? null,
+          language:    data.language ?? 'en',
+          updated_at:  new Date().toISOString(),
+        },
+        { onConflict: 'business_id,phone', ignoreDuplicates: false }
+      )
+      .select()
+      .single();
+    if (error) throw error;
+    return row;
   }
 
   async incrementJobCount(id: string, jobRevenue: number): Promise<void> {
-    await this.query(
-      `UPDATE customers
-       SET total_jobs = total_jobs + 1,
-           lifetime_value = lifetime_value + $2,
-           last_service_date = NOW(),
-           updated_at = NOW()
-       WHERE id = $1`,
-      [id, jobRevenue]
-    );
+    const current = await this.findById(id);
+    if (!current) return;
+
+    const { error } = await this.db
+      .from('customers')
+      .update({
+        total_jobs:        current.total_jobs + 1,
+        lifetime_value:    current.lifetime_value + jobRevenue,
+        last_service_date: new Date().toISOString(),
+        updated_at:        new Date().toISOString(),
+      })
+      .eq('id', id);
+    if (error) throw error;
   }
 
   async updateLanguage(id: string, language: string): Promise<void> {
-    await this.query(
-      `UPDATE customers SET language = $2, updated_at = NOW() WHERE id = $1`,
-      [id, language]
-    );
+    const { error } = await this.db
+      .from('customers')
+      .update({ language, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
   }
 }
