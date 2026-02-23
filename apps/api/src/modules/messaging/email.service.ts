@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 import { env } from '../../config/env.config';
-import { pool } from '../../config/database.config';
+import { supabaseAdmin } from '../../database/supabase.client';
 import { createLogger } from '../../utils/logger';
 import type { EmailPayload } from './types';
 
@@ -43,23 +43,19 @@ export class EmailService {
     status: string,
     errorMessage?: string
   ): Promise<void> {
-    await pool.query(
-      `INSERT INTO messages
-         (business_id, customer_id, appointment_id,
-          direction, channel, message_type, subject, message_text,
-          status, provider_id, error_message)
-       VALUES ($1,$2,$3,'outbound','email',$4,$5,$6,$7,$8,$9)`,
-      [
-        payload.businessId ?? null,
-        payload.customerId ?? null,
-        payload.appointmentId ?? null,
-        payload.messageType ?? null,
-        payload.subject,
-        payload.html,
-        status,
-        providerId,
-        errorMessage ?? null,
-      ]
-    ).catch((err) => log.error('Failed to log email', { error: (err as Error).message }));
+    const { error } = await supabaseAdmin.from('messages').insert({
+      business_id:    payload.businessId ?? null,
+      customer_id:    payload.customerId ?? null,
+      appointment_id: payload.appointmentId ?? null,
+      direction:      'outbound',
+      channel:        'email',
+      message_type:   payload.messageType ?? null,
+      subject:        payload.subject,
+      message_text:   payload.html,
+      status,
+      provider_id:    providerId,
+      error_message:  errorMessage ?? null,
+    });
+    if (error) log.warn('Failed to log email', { error: error.message });
   }
 }

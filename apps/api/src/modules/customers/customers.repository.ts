@@ -1,4 +1,4 @@
-import { pool } from '../../config/database.config';
+import { supabaseAdmin } from '../../database/supabase.client';
 import type { CustomerDetail, CustomerCall, CustomerAppointment } from './types';
 
 /**
@@ -7,38 +7,33 @@ import type { CustomerDetail, CustomerCall, CustomerAppointment } from './types'
  */
 export class CustomersRepository {
   async findDetail(customerId: string, businessId: string): Promise<CustomerDetail | null> {
-    const row = await pool.query(
-      `SELECT
-         c.id, c.name, c.phone, c.email, c.address, c.city, c.state, c.zip,
-         c.latitude, c.longitude, c.language, c.preferred_contact,
-         c.lifetime_value, c.total_jobs, c.last_service_date,
-         c.tags, c.internal_notes, c.stripe_customer_id, c.jobber_id,
-         c.created_at
-       FROM customers c
-       WHERE c.id = $1 AND c.business_id = $2`,
-      [customerId, businessId]
-    );
+    const { data: row } = await supabaseAdmin
+      .from('customers')
+      .select(
+        'id, name, phone, email, address, city, state, zip, latitude, longitude, language, preferred_contact, lifetime_value, total_jobs, last_service_date, tags, internal_notes, stripe_customer_id, jobber_id, created_at'
+      )
+      .eq('id', customerId)
+      .eq('business_id', businessId)
+      .maybeSingle();
 
-    if (!row.rows.length) return null;
-    const r = row.rows[0] as Record<string, unknown>;
+    if (!row) return null;
 
-    const calls = await pool.query(
-      `SELECT id, call_sid, urgency, outcome, lead_score, created_at
-       FROM calls
-       WHERE customer_id = $1
-       ORDER BY created_at DESC
-       LIMIT 10`,
-      [customerId]
-    );
+    const { data: callRows } = await supabaseAdmin
+      .from('calls')
+      .select('id, call_sid, urgency, outcome, lead_score, created_at')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false })
+      .limit(10);
 
-    const appointments = await pool.query(
-      `SELECT id, scheduled_time, service_type, status, actual_cost
-       FROM appointments
-       WHERE customer_id = $1 AND business_id = $2
-       ORDER BY scheduled_time DESC
-       LIMIT 10`,
-      [customerId, businessId]
-    );
+    const { data: apptRows } = await supabaseAdmin
+      .from('appointments')
+      .select('id, scheduled_time, service_type, status, actual_cost')
+      .eq('customer_id', customerId)
+      .eq('business_id', businessId)
+      .order('scheduled_time', { ascending: false })
+      .limit(10);
+
+    const r = row as Record<string, unknown>;
 
     return {
       id:                  r.id as string,
@@ -61,7 +56,7 @@ export class CustomersRepository {
       stripeCustomerId:    r.stripe_customer_id as string | null,
       jobberId:            r.jobber_id as string | null,
       createdAt:           new Date(r.created_at as string),
-      recentCalls:         calls.rows.map((c) => ({
+      recentCalls: (callRows ?? []).map((c: Record<string, unknown>) => ({
         id:        c.id as string,
         callSid:   c.call_sid as string | null,
         urgency:   c.urgency as string | null,
@@ -69,7 +64,7 @@ export class CustomersRepository {
         leadScore: c.lead_score as number | null,
         createdAt: new Date(c.created_at as string),
       })) as CustomerCall[],
-      upcomingAppointments: appointments.rows.map((a) => ({
+      upcomingAppointments: (apptRows ?? []).map((a: Record<string, unknown>) => ({
         id:            a.id as string,
         scheduledTime: new Date(a.scheduled_time as string),
         serviceType:   a.service_type as string | null,
@@ -80,22 +75,15 @@ export class CustomersRepository {
   }
 
   async search(businessId: string, query: string, limit = 20): Promise<CustomerDetail[]> {
-    const rows = await pool.query(
-      `SELECT id, name, phone, email, city, state, language,
-              lifetime_value, total_jobs, last_service_date, tags, created_at
-       FROM customers
-       WHERE business_id = $1
-         AND (
-           name  ILIKE $2 OR
-           phone ILIKE $2 OR
-           email ILIKE $2
-         )
-       ORDER BY lifetime_value DESC
-       LIMIT $3`,
-      [businessId, `%${query}%`, limit]
-    );
+    const { data: rows } = await supabaseAdmin
+      .from('customers')
+      .select('id, name, phone, email, city, state, language, lifetime_value, total_jobs, last_service_date, tags, created_at')
+      .eq('business_id', businessId)
+      .or(`name.ilike.%${query}%,phone.ilike.%${query}%,email.ilike.%${query}%`)
+      .order('lifetime_value', { ascending: false })
+      .limit(limit);
 
-    return rows.rows.map((r) => ({
+    return (rows ?? []).map((r: Record<string, unknown>) => ({
       id:                   r.id as string,
       name:                 r.name as string | null,
       phone:                r.phone as string,
@@ -142,25 +130,20 @@ export class CustomersRepository {
       'language', 'preferred_contact', 'internal_notes', 'tags',
     ] as const;
 
-    const setClauses: string[] = [];
-    const values: unknown[] = [];
-    let idx = 1;
+    const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
     for (const key of allowed) {
       if (key in data) {
-        setClauses.push(`${key} = $${idx++}`);
-        values.push((data as Record<string, unknown>)[key]);
+        updateData[key] = (data as Record<string, unknown>)[key];
       }
     }
 
-    if (!setClauses.length) return;
+    if (Object.keys(updateData).length === 1) return; // only updated_at
 
-    values.push(customerId, businessId);
-    await pool.query(
-      `UPDATE customers
-       SET ${setClauses.join(', ')}, updated_at = NOW()
-       WHERE id = $${idx} AND business_id = $${idx + 1}`,
-      values
-    );
+    await supabaseAdmin
+      .from('customers')
+      .update(updateData)
+      .eq('id', customerId)
+      .eq('business_id', businessId);
   }
 }

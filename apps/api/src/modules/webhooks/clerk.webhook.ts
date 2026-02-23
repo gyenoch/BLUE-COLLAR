@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { Webhook } from 'svix';
 import { env } from '../../config/env.config';
 import { AuthService } from '../auth/auth.service';
-import { pool } from '../../config/database.config';
+import { supabaseAdmin } from '../../database/supabase.client';
 import { createLogger } from '../../utils/logger';
 
 const log = createLogger('clerk-webhook');
@@ -32,10 +32,16 @@ export async function handleClerkWebhook(req: Request, res: Response): Promise<v
   }
 
   // Log event
-  await pool.query(
-    `INSERT INTO clerk_events (event_type, clerk_user_id, data) VALUES ($1, $2, $3)`,
-    [event.type, (event.data.id as string) ?? null, JSON.stringify(event.data)]
-  ).catch(() => {});
+  await supabaseAdmin
+    .from('clerk_events')
+    .insert({
+      event_type: event.type,
+      clerk_user_id: (event.data.id as string) ?? null,
+      data: event.data,
+    })
+    .then(({ error }) => {
+      if (error) log.warn('Failed to log clerk event', { error: error.message });
+    });
 
   switch (event.type) {
     case 'user.updated':

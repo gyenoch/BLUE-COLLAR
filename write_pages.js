@@ -1,0 +1,1 @@
+const fs=require("fs"),path=require("path"),BASE="apps/dashboard/src";function w(r,b){const f=path.join(BASE,r);fs.mkdirSync(path.dirname(f),{recursive:true});fs.writeFileSync(f,Buffer.from(b,"base64").toString("utf8"));console.log("OK",r);}

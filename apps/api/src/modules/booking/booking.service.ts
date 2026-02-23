@@ -1,4 +1,4 @@
-import { pool } from '../../config/database.config';
+import { supabaseAdmin } from '../../database/supabase.client';
 import { createLogger } from '../../utils/logger';
 import { CustomerRepository } from '../../database/repositories/customer.repository';
 import { AppointmentRepository } from '../../database/repositories/appointment.repository';
@@ -54,35 +54,31 @@ export class BookingService {
 
     // 3. Mark call outcome as 'booked'
     if (req.callId) {
-      await pool.query(
-        `UPDATE calls SET outcome = 'booked', customer_id = $2 WHERE id = $1`,
-        [req.callId, customer.id]
-      ).catch(() => {});
+      await supabaseAdmin
+        .from('calls')
+        .update({ outcome: 'booked', customer_id: customer.id })
+        .eq('id', req.callId)
+        .then(({ error }) => {
+          if (error) log.warn('Failed to update call outcome', { error: error.message });
+        });
     }
 
     // 4. Load business for SMS + calendar
-    const bizRow = await pool.query(
-      `SELECT business_name, phone_number, owner_phone, timezone, pricing
-       FROM businesses WHERE id = $1`,
-      [req.businessId]
-    );
-    const biz = bizRow.rows[0] as {
-      business_name: string;
-      phone_number:  string;
-      owner_phone:   string | null;
-      timezone:      string;
-      pricing:       { service_call?: number } | null;
-    } | undefined;
+    const { data: biz } = await supabaseAdmin
+      .from('businesses')
+      .select('business_name, phone_number, owner_phone, timezone, pricing')
+      .eq('id', req.businessId)
+      .maybeSingle();
 
     let confirmationSent = false;
     if (biz) {
       const sid = await smsService.sendConfirmation({
         to:            req.customerPhone,
         customerName:  req.customerName ?? null,
-        businessName:  biz.business_name,
+        businessName:  biz.business_name as string,
         scheduledTime: req.scheduledTime,
         serviceType:   req.serviceType ?? null,
-        timezone:      biz.timezone,
+        timezone:      biz.timezone as string,
         language:      req.language,
         businessId:    req.businessId,
         customerId:    customer.id,
@@ -91,20 +87,21 @@ export class BookingService {
       confirmationSent = !!sid;
 
       // Also notify the business owner
-      if (biz.owner_phone) {
+      const ownerPhone = biz.owner_phone as string | null;
+      if (ownerPhone) {
         const ownerMsg =
           `New booking! ${req.customerName ?? req.customerPhone} — ` +
           `${req.serviceType ?? 'Service'} — ` +
           new Intl.DateTimeFormat('en-US', {
-            timeZone: biz.timezone,
+            timeZone: biz.timezone as string,
             weekday: 'short', month: 'short', day: 'numeric',
             hour: 'numeric', minute: '2-digit', hour12: true,
           }).format(req.scheduledTime);
 
         await smsService.send({
-          to:         biz.owner_phone,
-          body:       ownerMsg,
-          businessId: req.businessId,
+          to:          ownerPhone,
+          body:        ownerMsg,
+          businessId:  req.businessId,
           messageType: 'confirmation',
         });
       }
@@ -120,15 +117,18 @@ export class BookingService {
         startTime:       req.scheduledTime,
         durationMinutes: req.durationMinutes ?? 60,
         attendeeEmail:   req.customerEmail,
-        timezone:        biz.timezone,
+        timezone:        biz.timezone as string,
       });
 
       if (eventId) {
         calendarEventId = eventId;
-        await pool.query(
-          `UPDATE appointments SET google_calendar_event_id = $2 WHERE id = $1`,
-          [appointment.id, eventId]
-        ).catch(() => {});
+        await supabaseAdmin
+          .from('appointments')
+          .update({ google_calendar_event_id: eventId })
+          .eq('id', appointment.id)
+          .then(({ error }) => {
+            if (error) log.warn('Failed to save calendar event id', { error: error.message });
+          });
       }
     }
 

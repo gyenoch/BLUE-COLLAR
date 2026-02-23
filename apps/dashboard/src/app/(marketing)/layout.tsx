@@ -1,3 +1,5 @@
-export default function MarketingLayout({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen">{children}</div>
+import { MarketingLayout } from '@/components/layouts/marketing-layout'
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return <MarketingLayout>{children}</MarketingLayout>
 }

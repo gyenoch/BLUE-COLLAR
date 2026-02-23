@@ -1,4 +1,4 @@
-import { pool } from '../../config/database.config';
+import { supabaseAdmin } from '../../database/supabase.client';
 import { createLogger } from '../../utils/logger';
 import type { TimeSlot, AvailabilityWindow, BusinessHours, SlotQuery } from './types';
 
@@ -15,18 +15,18 @@ export class AvailabilityService {
     const { businessId, date, durationMinutes = 60 } = query;
 
     // Load business hours + timezone
-    const bizRow = await pool.query(
-      `SELECT business_hours, timezone FROM businesses WHERE id = $1`,
-      [businessId]
-    );
-    if (!bizRow.rows.length) {
+    const { data: bizData } = await supabaseAdmin
+      .from('businesses')
+      .select('business_hours, timezone')
+      .eq('id', businessId)
+      .maybeSingle();
+
+    if (!bizData) {
       return { date, dayOfWeek: '', slots: [] };
     }
 
-    const { business_hours: hours, timezone } = bizRow.rows[0] as {
-      business_hours: BusinessHours | null;
-      timezone: string;
-    };
+    const hours = bizData.business_hours as BusinessHours | null;
+    const timezone = bizData.timezone as string;
 
     const targetDate = new Date(`${date}T00:00:00`);
     const dayName = DAY_NAMES[targetDate.getDay()];
@@ -40,15 +40,19 @@ export class AvailabilityService {
     const slots = this.buildSlots(date, dayHours.open, dayHours.close, durationMinutes, timezone);
 
     // Load booked appointments for that day
-    const bookedRows = await pool.query(
-      `SELECT scheduled_time, duration_minutes FROM appointments
-       WHERE business_id = $1
-         AND scheduled_time::date = $2::date
-         AND status NOT IN ('cancelled', 'no_show')`,
-      [businessId, date]
-    );
+    const dayStart = `${date}T00:00:00`;
+    const dayEnd   = `${date}T23:59:59`;
 
-    const booked = bookedRows.rows as { scheduled_time: Date; duration_minutes: number }[];
+    const { data: bookedData } = await supabaseAdmin
+      .from('appointments')
+      .select('scheduled_time, duration_minutes')
+      .eq('business_id', businessId)
+      .gte('scheduled_time', dayStart)
+      .lte('scheduled_time', dayEnd)
+      .neq('status', 'cancelled')
+      .neq('status', 'no_show');
+
+    const booked = (bookedData ?? []) as { scheduled_time: string; duration_minutes: number }[];
 
     // Mark slots that overlap with existing appointments
     for (const slot of slots) {

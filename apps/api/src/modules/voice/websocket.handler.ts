@@ -5,7 +5,8 @@ import { TwilioMediaMessage, ActiveCall } from './types';
 import { createDeepgramConnection } from '../conversation/clients/deepgram.client';
 import { ConversationService } from '../conversation/conversation.service';
 import { sendAudioToTwilio, clearTwilioAudioBuffer } from './audio-stream.service';
-import { pool } from '../../config/database.config';
+import { supabaseAdmin } from '../../database/supabase.client';
+import type { ConversationState } from '../conversation/types';
 import { createLogger } from '../../utils/logger';
 
 const log = createLogger('websocket-handler');
@@ -181,42 +182,39 @@ export function createMediaStreamServer(wss: WebSocketServer): void {
 }
 
 async function saveCallRecord(callSid: string, businessId: string, customerPhone: string): Promise<void> {
-  try {
-    await pool.query(
-      `INSERT INTO calls (business_id, customer_phone, call_sid, direction, created_at)
-       VALUES ($1, $2, $3, 'inbound', NOW())
-       ON CONFLICT (call_sid) DO NOTHING`,
-      [businessId || null, customerPhone, callSid]
+  const { error } = await supabaseAdmin
+    .from('calls')
+    .upsert(
+      {
+        business_id:    businessId || null,
+        customer_phone: customerPhone,
+        call_sid:       callSid,
+        direction:      'inbound',
+        created_at:     new Date().toISOString(),
+      },
+      { onConflict: 'call_sid', ignoreDuplicates: true }
     );
-  } catch (err) {
-    log.warn('Failed to save call record', { callSid, error: (err as Error).message });
-  }
+  if (error) log.warn('Failed to save call record', { callSid, error: error.message });
 }
 
-async function finalizeCallRecord(callSid: string, state: any): Promise<void> {
+async function finalizeCallRecord(callSid: string, state: ConversationState): Promise<void> {
   if (!state) return;
-  try {
-    const transcript = state.messages
-      .map((m: any) => `${m.role === 'user' ? 'Customer' : 'AI'}: ${m.content}`)
-      .join('\n');
+  const transcript = state.messages
+    .map((m) => `${m.role === 'user' ? 'Customer' : 'AI'}: ${m.content}`)
+    .join('\n');
 
-    await pool.query(
-      `UPDATE calls
-       SET transcript = $1, conversation_history = $2, language = $3,
-           urgency = $4, duration = $5
-       WHERE call_sid = $6`,
-      [
-        transcript,
-        JSON.stringify(state.messages),
-        state.language,
-        state.urgency ?? null,
-        Math.round((Date.now() - state.startedAt.getTime()) / 1000),
-        callSid,
-      ]
-    );
-  } catch (err) {
-    log.warn('Failed to finalize call record', { callSid, error: (err as Error).message });
-  }
+  const { error } = await supabaseAdmin
+    .from('calls')
+    .update({
+      transcript,
+      conversation_history: state.messages,
+      language:             state.language,
+      urgency:              state.urgency ?? null,
+      duration:             Math.round((Date.now() - state.startedAt.getTime()) / 1000),
+    })
+    .eq('call_sid', callSid);
+
+  if (error) log.warn('Failed to finalize call record', { callSid, error: error.message });
 }
 
 export function getActiveCalls(): Map<string, ActiveCall> {

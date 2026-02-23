@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { pool } from '../../config/database.config';
+import { supabaseAdmin } from '../../database/supabase.client';
 import { env } from '../../config/env.config';
 import { createLogger } from '../../utils/logger';
 
@@ -144,21 +144,23 @@ export class CalendarService {
       throw new Error('No refresh token returned — ensure prompt=consent was used');
     }
 
-    await pool.query(
-      `UPDATE businesses
-       SET google_calendar_refresh_token = $2, updated_at = NOW()
-       WHERE id = $1`,
-      [businessId, tokens.refresh_token]
-    );
+    await supabaseAdmin
+      .from('businesses')
+      .update({
+        google_calendar_refresh_token: tokens.refresh_token,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', businessId);
 
     log.info('Google Calendar connected', { businessId });
   }
 
   private async getRefreshToken(businessId: string): Promise<string | null> {
-    const row = await pool.query(
-      `SELECT google_calendar_refresh_token FROM businesses WHERE id = $1`,
-      [businessId]
-    );
-    return (row.rows[0]?.google_calendar_refresh_token as string) ?? null;
+    const { data } = await supabaseAdmin
+      .from('businesses')
+      .select('google_calendar_refresh_token')
+      .eq('id', businessId)
+      .maybeSingle();
+    return (data?.google_calendar_refresh_token as string) ?? null;
   }
 }

@@ -1,9 +1,10 @@
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
+import { DashboardLayout } from '@/components/layouts/dashboard-layout'
 
-export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default async function Layout({ children }: { children: React.ReactNode }) {
   const { userId } = await auth()
   if (!userId) redirect('/sign-in')
 
-  return <div className="min-h-screen bg-gray-50">{children}</div>
+  return <DashboardLayout>{children}</DashboardLayout>
 }

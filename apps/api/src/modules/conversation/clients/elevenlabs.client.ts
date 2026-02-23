@@ -18,22 +18,29 @@ export async function textToSpeech(
   voiceId = DEFAULT_VOICE_ID
 ): Promise<Buffer> {
   try {
-    const audioStream = await elevenlabs.generate({
-      voice: voiceId,
+    const audioStream = await elevenlabs.textToSpeech.convert(voiceId, {
       text,
-      model_id: 'eleven_turbo_v2_5',  // Lowest latency model
-      output_format: 'ulaw_8000',      // Twilio-compatible format
-      voice_settings: {
+      modelId: 'eleven_turbo_v2_5',  // Lowest latency model
+      outputFormat: 'ulaw_8000',      // Twilio-compatible format
+      voiceSettings: {
         stability: 0.5,
-        similarity_boost: 0.8,
+        similarityBoost: 0.8,
         style: 0.1,
-        use_speaker_boost: true,
+        useSpeakerBoost: true,
       },
     });
 
+    // ReadableStream (Web Streams API) — use getReader() instead of for-await
+    const reader = audioStream.getReader();
     const chunks: Buffer[] = [];
-    for await (const chunk of audioStream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(Buffer.from(value));
+      }
+    } finally {
+      reader.releaseLock();
     }
 
     const audio = Buffer.concat(chunks);

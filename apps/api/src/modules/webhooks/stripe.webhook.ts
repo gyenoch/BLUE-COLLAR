@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import Stripe from 'stripe';
 import { env } from '../../config/env.config';
-import { pool } from '../../config/database.config';
+import { supabaseAdmin } from '../../database/supabase.client';
 import { createLogger } from '../../utils/logger';
 
 const log = createLogger('stripe-webhook');
@@ -30,39 +30,55 @@ export async function handleStripeWebhook(req: Request, res: Response): Promise<
     return;
   }
 
-  // Log the event
-  await pool.query(
-    `INSERT INTO stripe_events (event_id, event_type, customer_id, subscription_id, data)
-     VALUES ($1, $2, $3, $4, $5) ON CONFLICT (event_id) DO NOTHING`,
-    [
-      event.id, event.type,
-      (event.data.object as Record<string, string>).customer ?? null,
-      (event.data.object as Record<string, string>).id ?? null,
-      JSON.stringify(event.data.object),
-    ]
-  ).catch(() => {});
+  // Log the event (ignore duplicate inserts)
+  await supabaseAdmin
+    .from('stripe_events')
+    .upsert(
+      {
+        event_id: event.id,
+        event_type: event.type,
+        customer_id: (event.data.object as Record<string, string>).customer ?? null,
+        subscription_id: (event.data.object as Record<string, string>).id ?? null,
+        data: event.data.object,
+      },
+      { onConflict: 'event_id', ignoreDuplicates: true }
+    )
+    .then(({ error }) => {
+      if (error) log.warn('Failed to log stripe event', { error: error.message });
+    });
 
   switch (event.type) {
     case 'customer.subscription.created':
     case 'customer.subscription.updated': {
       const sub = event.data.object as Stripe.Subscription;
-      await pool.query(
-        `UPDATE businesses
-         SET subscription_status = $1, stripe_subscription_id = $2, updated_at = NOW()
-         WHERE stripe_customer_id = $3`,
-        [sub.status, sub.id, sub.customer as string]
-      ).catch(() => {});
+      await supabaseAdmin
+        .from('businesses')
+        .update({
+          subscription_status: sub.status,
+          stripe_subscription_id: sub.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('stripe_customer_id', sub.customer as string)
+        .then(({ error }) => {
+          if (error) log.warn('Failed to update subscription', { error: error.message });
+        });
       log.info('Subscription updated', { subscriptionId: sub.id, status: sub.status });
       break;
     }
 
     case 'customer.subscription.deleted': {
       const sub = event.data.object as Stripe.Subscription;
-      await pool.query(
-        `UPDATE businesses SET subscription_status = 'cancelled', status = 'cancelled',
-         updated_at = NOW() WHERE stripe_customer_id = $1`,
-        [sub.customer as string]
-      ).catch(() => {});
+      await supabaseAdmin
+        .from('businesses')
+        .update({
+          subscription_status: 'cancelled',
+          status: 'cancelled',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('stripe_customer_id', sub.customer as string)
+        .then(({ error }) => {
+          if (error) log.warn('Failed to cancel subscription', { error: error.message });
+        });
       break;
     }
 

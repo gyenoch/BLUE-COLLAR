@@ -1,5 +1,5 @@
 import { sendSms } from '../../config/twilio.config';
-import { pool } from '../../config/database.config';
+import { supabaseAdmin } from '../../database/supabase.client';
 import { createLogger } from '../../utils/logger';
 import type { SmsPayload, MessageType } from './types';
 import { buildConfirmationSms } from './templates/sms/confirmation';
@@ -99,22 +99,18 @@ export class SmsService {
     status: string,
     errorMessage?: string
   ): Promise<void> {
-    await pool.query(
-      `INSERT INTO messages
-         (business_id, customer_id, appointment_id,
-          direction, channel, message_type, message_text,
-          status, provider_id, error_message)
-       VALUES ($1,$2,$3,'outbound','sms',$4,$5,$6,$7,$8)`,
-      [
-        payload.businessId ?? null,
-        payload.customerId ?? null,
-        payload.appointmentId ?? null,
-        (payload.messageType as MessageType) ?? null,
-        payload.body,
-        status,
-        providerId,
-        errorMessage ?? null,
-      ]
-    ).catch((err) => log.error('Failed to log SMS', { error: (err as Error).message }));
+    const { error } = await supabaseAdmin.from('messages').insert({
+      business_id:    payload.businessId ?? null,
+      customer_id:    payload.customerId ?? null,
+      appointment_id: payload.appointmentId ?? null,
+      direction:      'outbound',
+      channel:        'sms',
+      message_type:   (payload.messageType as MessageType) ?? null,
+      message_text:   payload.body,
+      status,
+      provider_id:    providerId,
+      error_message:  errorMessage ?? null,
+    });
+    if (error) log.warn('Failed to log SMS', { error: error.message });
   }
 }

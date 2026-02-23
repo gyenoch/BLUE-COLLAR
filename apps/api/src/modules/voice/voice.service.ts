@@ -1,6 +1,6 @@
 import twilio from 'twilio';
 import { env } from '../../config/env.config';
-import { pool } from '../../config/database.config';
+import { supabaseAdmin } from '../../database/supabase.client';
 import { createLogger } from '../../utils/logger';
 import { NotFoundError } from '../../utils/errors';
 
@@ -12,20 +12,24 @@ export class VoiceService {
    * Falls back to a test business in development mode.
    */
   async getBusinessByTwilioNumber(twilioNumber: string): Promise<{ id: string; businessName: string } | null> {
-    const result = await pool.query(
-      `SELECT id, business_name FROM businesses
-       WHERE twilio_number = $1 AND deleted_at IS NULL`,
-      [twilioNumber]
-    );
+    const { data } = await supabaseAdmin
+      .from('businesses')
+      .select('id, business_name')
+      .eq('twilio_number', twilioNumber)
+      .is('deleted_at', null)
+      .maybeSingle();
 
-    if (result.rows[0]) return result.rows[0];
+    if (data) return { id: data.id as string, businessName: data.business_name as string };
 
     // Development fallback — use the first active business
     if (env.NODE_ENV === 'development') {
-      const fallback = await pool.query(
-        `SELECT id, business_name FROM businesses WHERE deleted_at IS NULL LIMIT 1`
-      );
-      return fallback.rows[0] ?? null;
+      const { data: fallback } = await supabaseAdmin
+        .from('businesses')
+        .select('id, business_name')
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle();
+      return fallback ? { id: fallback.id as string, businessName: fallback.business_name as string } : null;
     }
 
     return null;
@@ -78,37 +82,30 @@ export class VoiceService {
   }
 
   async getCallDetails(callSid: string) {
-    const result = await pool.query(
-      `SELECT c.*, cu.name as customer_name, cu.phone as customer_phone_number
-       FROM calls c
-       LEFT JOIN customers cu ON c.customer_id = cu.id
-       WHERE c.call_sid = $1`,
-      [callSid]
-    );
-    if (!result.rows[0]) throw new NotFoundError('Call');
-    return result.rows[0];
+    const { data } = await supabaseAdmin
+      .from('calls')
+      .select('*, customers(name, phone)')
+      .eq('call_sid', callSid)
+      .maybeSingle();
+    if (!data) throw new NotFoundError('Call');
+    return data;
   }
 
   async getRecentCalls(businessId: string, limit = 50) {
-    const result = await pool.query(
-      `SELECT c.id, c.call_sid, c.customer_phone, c.duration, c.urgency,
-              c.issue_type, c.outcome, c.lead_score, c.created_at,
-              cu.name as customer_name
-       FROM calls c
-       LEFT JOIN customers cu ON c.customer_id = cu.id
-       WHERE c.business_id = $1
-       ORDER BY c.created_at DESC
-       LIMIT $2`,
-      [businessId, limit]
-    );
-    return result.rows;
+    const { data } = await supabaseAdmin
+      .from('calls')
+      .select('id, call_sid, customer_phone, duration, urgency, issue_type, outcome, lead_score, created_at, customers(name)')
+      .eq('business_id', businessId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    return data ?? [];
   }
 
   async updateCallOutcome(callSid: string, outcome: string, leadScore?: number) {
-    await pool.query(
-      `UPDATE calls SET outcome = $1, lead_score = $2 WHERE call_sid = $3`,
-      [outcome, leadScore ?? null, callSid]
-    );
+    await supabaseAdmin
+      .from('calls')
+      .update({ outcome, lead_score: leadScore ?? null })
+      .eq('call_sid', callSid);
     log.info('Call outcome updated', { callSid, outcome });
   }
 }

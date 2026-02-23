@@ -4,7 +4,7 @@ import { ConversationStateManager } from './conversation-state.manager';
 import { BusinessContext, ConversationState } from './types';
 import { detectSpanish } from '../../utils/helpers';
 import { createLogger } from '../../utils/logger';
-import { pool } from '../../config/database.config';
+import { supabaseAdmin } from '../../database/supabase.client';
 
 const log = createLogger('conversation-service');
 const stateManager = new ConversationStateManager();
@@ -95,24 +95,25 @@ export class ConversationService {
 
   private async getBusinessContext(businessId: string): Promise<BusinessContext | null> {
     try {
-      const result = await pool.query(
-        `SELECT id, business_name, trade_type, owner_phone, pricing, timezone
-         FROM businesses WHERE id = $1 AND deleted_at IS NULL`,
-        [businessId]
-      );
-      const row = result.rows[0];
-      if (!row) return null;
+      const { data } = await supabaseAdmin
+        .from('businesses')
+        .select('id, business_name, trade_type, owner_phone, pricing, timezone')
+        .eq('id', businessId)
+        .is('deleted_at', null)
+        .maybeSingle();
 
-      const pricing = row.pricing ?? {};
+      if (!data) return null;
+
+      const pricing = (data.pricing as Record<string, number>) ?? {};
       return {
-        businessId: row.id,
-        businessName: row.business_name,
-        tradeType: row.trade_type,
-        ownerPhone: row.owner_phone,
+        businessId: data.id as string,
+        businessName: data.business_name as string,
+        tradeType: data.trade_type as 'plumbing' | 'hvac' | 'electrical',
+        ownerPhone: (data.owner_phone as string | null) ?? '',
         serviceCallFee: pricing.service_call ?? 99,
         emergencyFee: pricing.emergency_fee ?? 175,
         hourlyRate: pricing.hourly_rate,
-        timezone: row.timezone ?? 'America/New_York',
+        timezone: (data.timezone as string) ?? 'America/New_York',
       };
     } catch (err) {
       log.error('Failed to load business context', { businessId, error: (err as Error).message });
